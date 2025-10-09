@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open the printed URL (e.g., `http://localhost:5173`). Click "Connect", enter a username and a message, then send.
+Open the printed URL (e.g., `http://localhost:5174`). Click "Connect", enter a username and a message, then send.
 
 ## Notes
 

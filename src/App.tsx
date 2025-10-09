@@ -1,165 +1,114 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  HubConnection,
-  HubConnectionBuilder,
-  HttpTransportType,
-  JsonHubProtocol,
-} from "@microsoft/signalr";
-import { MessagePackHubProtocol } from "@microsoft/signalr-protocol-msgpack";
-import DOMPurify from "dompurify";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { LobbyPage } from "./components/LobbyPage";
+import { RoomPage } from "./components/RoomPage";
+import { HttpTransportType } from "@microsoft/signalr";
 
-type ChatMessage = {
-  user: string;
-  text: string;
-};
-
-export default function App() {
-  const [connection, setConnection] = useState<HubConnection | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [user, setUser] = useState<string>("");
-  const [message, setMessage] = useState<string>("");
-  const [protocol, setProtocol] = useState<"json" | "msgpack">("json");
-  const [transport, setTransport] = useState<HttpTransportType>(
-    HttpTransportType.WebSockets
+export const App: React.FC = () => {
+  // jwt kan vara null om inte inloggad
+  const [jwt, setJwt] = useState<string | null>(() =>
+    sessionStorage.getItem("jwt")
   );
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [user, setUser] = useState<string>(
+    () => sessionStorage.getItem("username") ?? ""
+  );
+  const [isGuest, setIsGuest] = useState<boolean>(() => {
+    // Om en JWT finns => inte guest
+    return !sessionStorage.getItem("jwt");
+  });
 
-  const startConnection = async () => {
-    if (connection) {
-      await connection.stop();
-    }
-
-    // hämta JWT från servern
-    const res = await fetch("http://localhost:5214/auth/token");
-    const data = (await res.json()) as { token: string };
-    const token = data.token;
-    sessionStorage.setItem("jwt", token);
-    toast.success(`Token: ${token}`);
-
-    // välja meddelandeprotokoll
-    const hubProtocol =
-      protocol === "msgpack"
-        ? new MessagePackHubProtocol()
-        : new JsonHubProtocol();
-
-    // skapa anslutning
-    const conn = new HubConnectionBuilder()
-      .withUrl("http://localhost:5214/chathub", {
-        accessTokenFactory: () => token,
-        transport: transport,
-      })
-      .withHubProtocol(hubProtocol)
-      .withAutomaticReconnect()
-      .build();
-
-    // event handler med typer
-    conn.on("ReceiveMessage", (u: string, msg: string) => {
-      const safeUser = DOMPurify.sanitize(u);
-      const safeMsg = DOMPurify.sanitize(msg);
-      setMessages((prev) => [...prev, { user: safeUser, text: safeMsg }]);
-    });
-
-    await conn.start();
-    setConnection(conn);
-    console.log(`Connected with: ${transport}, ${protocol}`);
-  };
+  // Transport & protocol för SignalR
+  const transport: HttpTransportType = HttpTransportType.WebSockets;
+  const protocol: "json" | "msgpack" = "json";
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
+      sessionStorage.setItem("jwt", token);
+      setJwt(token);
+      setIsGuest(false);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [messages]);
+  }, []);
 
-  const sendMessage = async () => {
-    if (connection && message && user) {
-      try {
-        // invoke med void-typ
-        await connection.invoke<void>("SendMessage", user, message);
-        setMessage("");
-      } catch (err) {
-        console.error("Send error:", err);
-      }
+  useEffect(() => {
+    if (jwt) {
+      sessionStorage.setItem("jwt", jwt);
+      setIsGuest(false);
+    } else {
+      sessionStorage.removeItem("jwt");
     }
+  }, [jwt]);
+
+  // När username ändras, spara i sessionStorage
+  useEffect(() => {
+    if (user) sessionStorage.setItem("username", user);
+    else sessionStorage.removeItem("username");
+  }, [user]);
+
+  const handleLogout = () => {
+    setJwt(null);
+    setUser("");
+    setIsGuest(true);
+    sessionStorage.removeItem("jwt");
+    sessionStorage.removeItem("username");
   };
 
   return (
-    <div className="p-6 max-w-lg mx-auto mt-10 space-y-4">
-      <div className="flex gap-2">
-        <select
-          value={transport}
-          onChange={(e) =>
-            setTransport(Number(e.target.value) as HttpTransportType)
-          }
-          className="select select-bordered"
-        >
-          <option value={HttpTransportType.WebSockets}>WebSockets</option>
-          <option value={HttpTransportType.ServerSentEvents}>SSE</option>
-          <option value={HttpTransportType.LongPolling}>LongPolling</option>
-        </select>
-
-        <select
-          value={protocol}
-          onChange={(e) => setProtocol(e.target.value as "json" | "msgpack")}
-          className="select select-bordered"
-        >
-          <option value="json">JSON</option>
-          <option value="msgpack">MessagePack</option>
-        </select>
-
-        <button className="btn btn-primary" onClick={startConnection}>
-          Connect
-        </button>
-      </div>
-
-      <div
-        className={`h-96 overflow-y-scroll border rounded-lg p-4 ${
-          connection ? "bg-primary" : "bg-neutral"
-        }`}
-      >
-        {messages.length === 0 && (
-          <small className="text-gray-400">Inga meddelanden ännu 😞</small>
-        )}
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`chat ${m.user === user ? "chat-end" : "chat-start"}`}
+    <Router>
+      <nav className="bg-primary text-white h-12 flex items-center justify-between px-4">
+        <span className="font-bold text-lg">My Chat</span>
+        {jwt && (
+          <button
+            onClick={handleLogout}
+            className="bg-white text-primary px-2 py-1 rounded text-sm cursor-pointer"
           >
-            <div className="chat-header">{m.user}</div>
-            <div
-              className={`chat-bubble ${m.user === user ? "bg-gray-700" : ""}`}
-            >
-              {m.text}
-            </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
+            Logout
+          </button>
+        )}
+      </nav>
 
-      <div className="flex gap-2">
-        <input
-          type="text"
-          placeholder="Name"
-          value={user}
-          onChange={(e) => setUser(e.target.value)}
-          className="input input-bordered w-1/3"
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <LobbyPage
+              user={user}
+              setUser={setUser}
+              jwt={jwt ?? ""}
+              setJwt={(t: string) => setJwt(t)}
+              isGuest={isGuest}
+              setIsGuest={setIsGuest}
+              transport={transport}
+              protocol={protocol}
+            />
+          }
         />
-        <input
-          type="text"
-          placeholder="Message"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") sendMessage();
-          }}
-          className="input input-bordered flex-1"
+
+        <Route
+          path="/room/:roomId"
+          element={
+            jwt ? (
+              <RoomPage
+                user={user}
+                jwt={jwt!}
+                transport={transport}
+                protocol={protocol}
+              />
+            ) : (
+              <Navigate to="/" />
+            )
+          }
         />
-        <button className="btn btn-primary" onClick={sendMessage}>
-          Send
-        </button>
-      </div>
-      <ToastContainer />
-    </div>
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </Router>
   );
-}
+};
