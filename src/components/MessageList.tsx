@@ -17,16 +17,16 @@ export const MessageList: React.FC<Props> = ({ messages, currentUser }) => {
       {messages.map((m, idx) => (
         <div
           key={idx}
-          className={`p-1 rounded max-w-xs break-words ${
+          className={`p-2 rounded max-w-xs break-words text-white ${
             m.user === currentUser
-              ? "bg-blue-100 self-end"
-              : "bg-gray-200 self-start"
+              ? "bg-blue-600 self-end"
+              : "bg-gray-700 self-start"
           }`}
         >
           <div className="flex justify-between items-baseline">
             <strong>{m.user}</strong>
             {m.time && (
-              <span className="text-xs text-gray-500 ml-2">{m.time}</span>
+              <span className="text-xs text-gray-300 ml-2">{m.time}</span>
             )}
           </div>
           <div>{m.text}</div>

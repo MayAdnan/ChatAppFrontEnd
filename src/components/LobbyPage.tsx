@@ -153,10 +153,11 @@ export const LobbyPage: React.FC<Props> = ({
   const submitUsername = async () => {
     if (!tempUser.trim()) return;
     const username = tempUser.trim();
+
     setUser(username);
     setIsGuest(true);
     sessionStorage.setItem("username", username);
-    await connectPublicHub(username);
+    connectPublicHub(username);
   };
 
   // --- Send message ---
@@ -263,10 +264,10 @@ export const LobbyPage: React.FC<Props> = ({
                     m.user === user ? "chat-end" : "chat-start"
                   }`}
                 >
-                  <div className="chat-header">{m.user}</div>
+                  <div className="chat-header font-semibold">{m.user}</div>
                   <div
-                    className={`chat-bubble ${
-                      m.user === user ? "bg-gray-700" : ""
+                    className={`chat-bubble text-white ${
+                      m.user === user ? "bg-gray-700" : "bg-blue-600"
                     }`}
                   >
                     {m.text}
@@ -326,7 +327,7 @@ export const LobbyPage: React.FC<Props> = ({
         )}
       </div>
 
-      <div className="w-80 bg-gray-100 p-4 border-l">
+      <div className="w-80 bg-gray-800 p-4 border-l text-white">
         <h2 className="text-lg font-bold mb-2">Login / Register</h2>
         <LoginForm onAuthSuccess={handleAuthSuccess} />
         <RegisterForm onAuthSuccess={handleAuthSuccess} />

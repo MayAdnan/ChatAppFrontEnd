@@ -17,10 +17,19 @@ export const RegisterForm: React.FC<Props> = ({ onAuthSuccess }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ Username: username, Password: password }),
       });
-      if (!res.ok) throw new Error("Registration failed");
+      if (res.status === 409) {
+        toast.error("Username already taken");
+        return;
+      }
+
+      if (!res.ok) {
+        toast.error(`Registration failed (${res.status})`);
+        return;
+      }
       const data = await res.json();
       onAuthSuccess(data.token, username);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Registration failed");
     }
   };

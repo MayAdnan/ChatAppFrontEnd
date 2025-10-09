@@ -49,7 +49,7 @@ export const RoomPage: React.FC<Props> = ({
     decryptRef.current = decryptIfEncrypted;
   }, [decryptIfEncrypted]);
 
-  // --- Hämta roomName om saknas ---
+  // --- Fetch roomName if missing ---
   useEffect(() => {
     if (!roomId || !jwt) return;
     if (roomName) return;
@@ -65,51 +65,62 @@ export const RoomPage: React.FC<Props> = ({
         if (data?.room) {
           setRoomName(data.room);
           sessionStorage.setItem("RoomName", data.room);
+        } else {
+          toast.error("Room not found");
+          navigate("/rooms");
         }
       } catch (err) {
         console.error("Failed to fetch room name:", err);
         toast.error("Failed to load room");
+        navigate("/rooms");
       }
     };
 
     fetchRoomName();
-  }, [roomId, jwt, roomName]);
+  }, [roomId, jwt, roomName, navigate]);
 
   // --- Connect to Private Hub ---
   useEffect(() => {
     if (!roomName || !jwt) return;
 
-    const hubProtocol =
-      protocol === "msgpack"
-        ? new MessagePackHubProtocol()
-        : new JsonHubProtocol();
+    let started = false; // ✅ Flagga för att starta bara en gång
 
-    const conn = new HubConnectionBuilder()
-      .withUrl(`${API_BASE}/privatechathub`, {
-        transport,
-        accessTokenFactory: () => jwt,
-      })
-      .withHubProtocol(hubProtocol)
-      .withAutomaticReconnect([0, 2000, 10000, 30000])
-      .build();
+    const startConnection = async () => {
+      if (started) return;
+      started = true;
 
-    connectionRef.current = conn;
+      const hubProtocol =
+        protocol === "msgpack"
+          ? new MessagePackHubProtocol()
+          : new JsonHubProtocol();
 
-    conn.on("ReceiveMessage", async (sender: string, msg: string) => {
-      const displayed = await decryptRef.current(msg).catch(() => msg);
-      setMessages((prev) => [
-        ...prev,
-        {
-          user: DOMPurify.sanitize(sender),
-          text: DOMPurify.sanitize(displayed),
-        },
-      ]);
-    });
+      const conn = new HubConnectionBuilder()
+        .withUrl(`${API_BASE}/privatechathub`, {
+          transport,
+          accessTokenFactory: () => jwt,
+        })
+        .withHubProtocol(hubProtocol)
+        .withAutomaticReconnect([0, 2000, 10000, 30000])
+        .build();
 
-    conn.on(
-      "RoomHistory",
-      async (_roomKey, msgs: { username: string; message: string }[]) => {
-        if (_roomKey === roomName) {
+      connectionRef.current = conn;
+
+      // --- Handlers ---
+      conn.on("ReceiveMessage", async (sender: string, msg: string) => {
+        const displayed = await decryptRef.current(msg).catch(() => msg);
+        setMessages((prev) => [
+          ...prev,
+          {
+            user: DOMPurify.sanitize(sender),
+            text: DOMPurify.sanitize(displayed),
+          },
+        ]);
+      });
+
+      conn.on(
+        "RoomHistory",
+        async (_roomKey, msgs: { username: string; message: string }[]) => {
+          if (_roomKey !== roomName) return;
           const hist: ChatMessage[] = await Promise.all(
             msgs.map(async (m) => ({
               user: DOMPurify.sanitize(m.username),
@@ -120,59 +131,56 @@ export const RoomPage: React.FC<Props> = ({
           );
           setMessages(hist);
         }
-      }
-    );
+      );
 
-    conn.onclose((err) => {
-      console.error("Hub closed:", err);
-      toast.error("Connection closed. Please refresh or rejoin the room.");
-      setIsConnected(false);
-      setJoinedRoom(false);
-    });
+      conn.onclose(() => {
+        setIsConnected(false);
+        setJoinedRoom(false);
+        toast.error("Connection closed. Refresh or rejoin.");
+      });
 
-    conn.onreconnecting((err) => {
-      console.warn("Hub reconnecting:", err);
-      toast.warning("Reconnecting to room...");
-      setIsConnected(false);
-      setJoinedRoom(false);
-    });
+      conn.onreconnecting(() => {
+        setIsConnected(false);
+        setJoinedRoom(false);
+        toast.warning("Reconnecting...");
+      });
 
-    conn.onreconnected(() => {
-      toast.success("Reconnected!");
-      conn
-        .invoke("JoinRoom", roomName)
-        .then(() => setJoinedRoom(true))
-        .catch(console.error);
-      setIsConnected(true);
-    });
+      conn.onreconnected(() => {
+        setIsConnected(true);
+        conn
+          .invoke("JoinRoom", roomName)
+          .then(() => setJoinedRoom(true))
+          .catch(console.error);
+        toast.success("Reconnected!");
+      });
 
-    const startConnection = async () => {
       try {
         await conn.start();
         setIsConnected(true);
+      } catch (err) {
+        console.error("Failed to connect to hub:", err);
+      }
+
+      try {
         await conn.invoke("JoinRoom", roomName);
         setJoinedRoom(true);
         toast.success(`Joined room ${roomName}`);
       } catch (err) {
-        console.error("Failed to connect or join room:", err);
-        toast.error("Failed to connect to room. Make sure you are logged in.");
+        console.error("Failed to join room:", err);
       }
     };
 
     startConnection();
 
     return () => {
-      conn.stop().catch(() => {});
+      connectionRef.current?.stop().catch(() => {});
       setIsConnected(false);
       setJoinedRoom(false);
     };
   }, [roomName, jwt, transport, protocol]);
 
   const sendMessage = async () => {
-    if (!isConnected || !joinedRoom) {
-      toast.error("Not connected to room yet");
-      return;
-    }
+    if (!isConnected || !joinedRoom) return toast.error("Not connected yet");
     if (!message) return;
 
     const conn = connectionRef.current!;

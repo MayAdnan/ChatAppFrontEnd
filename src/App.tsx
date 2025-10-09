@@ -92,7 +92,7 @@ export const App: React.FC = () => {
         />
 
         <Route
-          path="/room/:roomName"
+          path="/room/:roomId"
           element={
             jwt ? (
               <RoomPage
