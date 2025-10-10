@@ -1,17 +1,32 @@
 # ChatApp Client (Vite + React + TS)
 
-This client connects to the ASP.NET Core SignalR server, fetches a JWT, and sends/receives encrypted chat messages.
+A real-time chat client built with React, TypeScript, and Vite. This client connects to the ChatAppServerApi backend via SignalR and supports user authentication, message encryption, and live chat functionality.
 
-## Run
+**Features**
+Real-Time Messaging: Powered by SignalR for instant communication.
 
-```
-npm install
-npm run dev
-```
+User Authentication: Login using JWT tokens.
 
-Open the printed URL (e.g., `http://localhost:5174`). Click "Connect", enter a username and a message, then send.
+Message Encryption: Ensures secure message transmission.
 
-## Notes
+Lightweight & Fast: Built with Vite and React for optimal performance.
 
-- Uses `https://localhost:7291` for token and SignalR hub
-- AES-GCM client-side encryption (demo key) and DOMPurify sanitization
+**Technologies**
+React – JavaScript library for building user interfaces.
+
+TypeScript – Superset of JavaScript for type safety.
+
+Vite – Next-generation, fast build tool.
+
+SignalR – Real-time web functionality.
+
+JWT – JSON Web Tokens for secure authentication.
+
+**Installation**
+Clone the repository:git clone https://github.com/MayAdnan/ChatAppFrontEnd.git
+cd ChatAppFrontEnd
+Install dependencies:npm install
+Run the development server: npm run dev
+
+**Usage**
+Open the printed URL (e.g., `http://localhost:5174`). Click "join", enter a username and a message, then send.
